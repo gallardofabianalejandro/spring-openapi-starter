@@ -4,11 +4,17 @@ import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.Content;
+import io.swagger.v3.oas.models.media.MediaType;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.responses.ApiResponse;
+import io.swagger.v3.oas.models.responses.ApiResponses;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import io.swagger.v3.oas.models.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springdoc.core.customizers.OpenApiCustomizer;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -16,7 +22,9 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @AutoConfiguration
@@ -54,6 +62,64 @@ public class ApiDocumentationAutoConfiguration {
 
         logger.debug("OpenAPI configuration completed for: {}", properties.getTitle());
         return openAPI;
+    }
+
+    /**
+     * Provides global API responses that can be reused across all endpoints
+     */
+    @Bean
+    public OpenApiCustomizer globalApiResponsesCustomizer() {
+        return openApi -> {
+            Components components = openApi.getComponents();
+            if (components == null) {
+                components = new Components();
+                openApi.setComponents(components);
+            }
+
+            // Initialize responses map if null
+            if (components.getResponses() == null) {
+                components.setResponses(new HashMap<>());
+            }
+
+            // Add common global responses
+            Map<String, ApiResponse> globalResponses = new HashMap<>();
+
+            // Success responses
+            globalResponses.put("Success",
+                new ApiResponse().description("Operation completed successfully"));
+
+            globalResponses.put("Created",
+                new ApiResponse().description("Resource created successfully"));
+
+            globalResponses.put("NoContent",
+                new ApiResponse().description("Operation completed, no content returned"));
+
+            // Error responses
+            globalResponses.put("BadRequest",
+                new ApiResponse().description("Invalid input data or validation error"));
+
+            globalResponses.put("Unauthorized",
+                new ApiResponse().description("Authentication required or invalid credentials"));
+
+            globalResponses.put("Forbidden",
+                new ApiResponse().description("Access denied to this resource"));
+
+            globalResponses.put("NotFound",
+                new ApiResponse().description("Requested resource not found"));
+
+            globalResponses.put("Conflict",
+                new ApiResponse().description("Resource conflict or already exists"));
+
+            globalResponses.put("InternalServerError",
+                new ApiResponse().description("Internal server error occurred"));
+
+            // Add all global responses
+            globalResponses.forEach((key, response) ->
+                components.getResponses().putIfAbsent(key, response));
+
+            logger.debug("Added {} global API responses to OpenAPI configuration",
+                        globalResponses.size());
+        };
     }
 
     private Info buildInfo() {

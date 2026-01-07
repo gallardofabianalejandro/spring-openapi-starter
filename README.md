@@ -12,6 +12,10 @@ Un starter de Spring Boot que configura automáticamente la documentación OpenA
 - ✅ **Prioridad sobre SpringDoc** con `@Primary`
 - ✅ **Desactivación opcional** del starter
 
+## Registro de Cambios
+
+Consulta el [CHANGELOG.md](CHANGELOG.md) para ver el historial completo de versiones, nuevas características, cambios, correcciones y mejoras realizadas en el proyecto.
+
 ## Instalación
 
 ### Opción 1: Dependencia local (desarrollo)
@@ -100,7 +104,7 @@ public class CustomOpenApiConfig {
     public OpenAPI customOpenAPI() {
         // Tu configuración personalizada aquí
         return new OpenAPI()
-            .info(new Info().title("Mi Título Personalizado"))
+            .info(new Info().title("Mi Título Personalizado"));
             // ... más configuraciones
     }
 }
