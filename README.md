@@ -79,8 +79,95 @@ app:
 
 1. **Agregar dependencia**
 2. **Configurar propiedades** en `application.yaml`
-3. **Acceder a Swagger UI**: `http://localhost:8080/swagger-ui.html`
-4. **Acceder a OpenAPI JSON**: `http://localhost:8080/v3/api-docs`
+3. **Usar anotaciones del starter** para documentación automática
+4. **Acceder a Swagger UI**: `http://localhost:8080/swagger-ui.html`
+5. **Acceder a OpenAPI JSON**: `http://localhost:8080/v3/api-docs`
+
+### Anotaciones Disponibles
+
+El starter incluye anotaciones compuestas reutilizables:
+
+#### Respuestas API
+```java
+import com.openapi.autoconfigure.openapi.ApiAnnotations;
+
+@RestController
+public class MyController {
+
+    @ApiAnnotations.StandardApiResponses  // 200, 400, 404
+    @GetMapping("/resource")
+    public ResponseEntity<Resource> getResource() { /* ... */ }
+
+    @ApiAnnotations.CreateApiResponses   // 201, 400, 409
+    @PostMapping("/resource")
+    public ResponseEntity<Resource> createResource() { /* ... */ }
+
+    @ApiAnnotations.UpdateApiResponses   // 200, 304, 400, 404
+    @PutMapping("/resource")
+    public ResponseEntity<Resource> updateResource() { /* ... */ }
+
+    @ApiAnnotations.DeleteApiResponses   // 200, 304, 400, 404
+    @DeleteMapping("/resource")
+    public ResponseEntity<Void> deleteResource() { /* ... */ }
+}
+```
+
+#### Parámetros
+```java
+@ApiAnnotations.IdParam
+@PathVariable Long id
+
+@ApiAnnotations.DataParam
+@RequestBody MyDto data
+
+@ApiAnnotations.PhoneNumberParam  // Genérico internacional
+@ApiAnnotations.MobileNumberParam // Específico Argentina (10 dígitos)
+@ApiAnnotations.CustomerDataParam // Datos de cliente
+@ApiAnnotations.CustomerIdParam   // ID de cliente
+```
+
+### Sobrescribir Anotaciones
+
+Para personalizaciones específicas (ej: formato de teléfono por país):
+
+```java
+// En tu microservicio, crea anotaciones que sobrescriban las genéricas
+@Target(ElementType.PARAMETER)
+@Retention(RetentionPolicy.RUNTIME)
+@Parameter(description = "US phone number (XXX-XXX-XXXX)",
+           example = "555-123-4567",
+           pattern = "^\\d{3}-\\d{3}-\\d{4}$",
+           required = true)
+public @interface USPhoneNumberParam {}
+
+@Target(ElementType.METHOD)
+@Retention(RetentionPolicy.RUNTIME)
+@ApiResponses(value = {
+    @ApiResponse(responseCode = "200", description = "Success"),
+    @ApiResponse(responseCode = "400", description = "Invalid input data"),
+    @ApiResponse(responseCode = "404", description = "Resource not found"),
+    @ApiResponse(responseCode = "451", description = "Unavailable for legal reasons (GDPR)")
+})
+public @interface EUStandardApiResponses {}
+```
+
+**Resultado:** Las anotaciones específicas del microservicio tienen prioridad sobre las genéricas del starter.
+
+#### Ejemplo de Uso en Controller
+
+```java
+@RestController
+public class USCustomerController {
+
+    @USStandardApiResponses  // Respuestas específicas de US
+    @PostMapping("/customers")
+    public ResponseEntity<Customer> createCustomer(
+            @USPhoneNumberParam  // Formato específico de US
+            @RequestBody CustomerDto dto) {
+        // lógica específica de US
+    }
+}
+```
 
 ### Deshabilitar el starter
 
