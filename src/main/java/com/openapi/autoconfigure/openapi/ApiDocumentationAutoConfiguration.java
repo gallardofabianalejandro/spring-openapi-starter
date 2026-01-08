@@ -114,8 +114,9 @@ public class ApiDocumentationAutoConfiguration {
                 new ApiResponse().description("Internal server error occurred"));
 
             // Add all global responses
+            Components finalComponents = components;
             globalResponses.forEach((key, response) ->
-                components.getResponses().putIfAbsent(key, response));
+                finalComponents.getResponses().putIfAbsent(key, response));
 
             logger.debug("Added {} global API responses to OpenAPI configuration",
                         globalResponses.size());
