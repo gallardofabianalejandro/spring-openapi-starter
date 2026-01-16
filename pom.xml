@@ -11,7 +11,7 @@
 
     <groupId>com.openapi</groupId>
     <artifactId>spring-openapi-starter</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.1</version>
     <name>spring-openapi-starter</name>
     <description>Spring Boot Starter for OpenAPI Documentation and API Key Security</description>
 

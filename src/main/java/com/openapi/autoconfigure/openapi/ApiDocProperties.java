@@ -1,11 +1,16 @@
 package com.openapi.autoconfigure.openapi;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 
 import java.util.List;
 
 @ConfigurationProperties(prefix = "app.infra.openapi")
 public class ApiDocProperties {
+
+    private static final Logger logger = LoggerFactory.getLogger(ApiDocProperties.class);
 
     /**
      * Whether to enable OpenAPI documentation auto-configuration
@@ -54,6 +59,7 @@ public class ApiDocProperties {
     }
 
     public void setEnabled(boolean enabled) {
+        logger.debug("Setting OpenAPI enabled: {}", enabled);
         this.enabled = enabled;
     }
 
@@ -62,7 +68,10 @@ public class ApiDocProperties {
     }
 
     public void setTitle(String title) {
+        logger.info("=== [STARTER] ApiDocProperties.setTitle() at {} ===", System.currentTimeMillis());
+        logger.info("=== [STARTER] Old title: '{}', New title: '{}' ===", this.title, title);
         this.title = title;
+        logger.info("=== [STARTER] Title updated successfully ===");
     }
 
     public String getDescription() {
@@ -70,7 +79,10 @@ public class ApiDocProperties {
     }
 
     public void setDescription(String description) {
+        logger.info("=== [STARTER] ApiDocProperties.setDescription() at {} ===", System.currentTimeMillis());
+        logger.info("=== [STARTER] Old description: '{}', New description: '{}' ===", this.description, description);
         this.description = description;
+        logger.info("=== [STARTER] Description updated successfully ===");
     }
 
     public String getVersion() {
@@ -78,7 +90,10 @@ public class ApiDocProperties {
     }
 
     public void setVersion(String version) {
+        logger.info("=== [STARTER] ApiDocProperties.setVersion() at {} ===", System.currentTimeMillis());
+        logger.info("=== [STARTER] Old version: '{}', New version: '{}' ===", this.version, version);
         this.version = version;
+        logger.info("=== [STARTER] Version updated successfully ===");
     }
 
     public Contact getContact() {

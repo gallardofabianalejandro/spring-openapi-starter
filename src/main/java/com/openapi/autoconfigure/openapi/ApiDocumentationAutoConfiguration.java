@@ -2,184 +2,149 @@ package com.openapi.autoconfigure.openapi;
 
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.Paths;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
-import io.swagger.v3.oas.models.media.Content;
-import io.swagger.v3.oas.models.media.MediaType;
-import io.swagger.v3.oas.models.media.Schema;
-import io.swagger.v3.oas.models.responses.ApiResponse;
-import io.swagger.v3.oas.models.responses.ApiResponses;
-import io.swagger.v3.oas.models.security.SecurityScheme;
-import io.swagger.v3.oas.models.servers.Server;
-import io.swagger.v3.oas.models.tags.Tag;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springdoc.core.customizers.OpenApiCustomizer;
+import org.springdoc.core.service.OpenAPIService;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.cloud.context.environment.EnvironmentChangeEvent;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.event.EventListener;
 
-import java.util.HashMap;
-import java.util.List;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "app.infra.openapi", name = "enabled", matchIfMissing = true)
 @EnableConfigurationProperties(ApiDocProperties.class)
-@RefreshScope
 public class ApiDocumentationAutoConfiguration {
 
     private static final Logger logger = LoggerFactory.getLogger(ApiDocumentationAutoConfiguration.class);
 
     private final ApiDocProperties properties;
 
-    public ApiDocumentationAutoConfiguration(ApiDocProperties properties) {
+    private final ObjectProvider<OpenAPIService> openAPIServiceProvider;
+
+    public ApiDocumentationAutoConfiguration(ApiDocProperties properties, ObjectProvider<OpenAPIService> openAPIServiceProvider) {
         this.properties = properties;
-        logger.debug("ApiDocumentationAutoConfiguration initialized with title: {}", properties.getTitle());
-    }
-
-    @Bean
-    @Primary
-    public OpenAPI customOpenAPI() {
-        logger.info("Configuring OpenAPI documentation with custom properties");
-
-        OpenAPI openAPI = new OpenAPI()
-                .info(buildInfo())
-                .components(buildComponents());
-
-        // Add servers if configured
-        if (properties.getServers() != null && !properties.getServers().isEmpty()) {
-            openAPI.servers(buildServers());
-        }
-
-        // Add global tags if configured
-        if (properties.getTags() != null && !properties.getTags().isEmpty()) {
-            openAPI.tags(buildTags());
-        }
-
-        logger.debug("OpenAPI configuration completed for: {}", properties.getTitle());
-        return openAPI;
+        this.openAPIServiceProvider = openAPIServiceProvider;
+        logger.info("=== ApiDocumentationAutoConfiguration initialized ===");
+        logger.info("Current properties - Title: '{}', Description: '{}', Version: '{}'",
+                   properties.getTitle(), properties.getDescription(), properties.getVersion());
+        logger.info("Contact - Name: '{}', Email: '{}', URL: '{}'",
+                   properties.getContact() != null ? properties.getContact().getName() : "null",
+                   properties.getContact() != null ? properties.getContact().getEmail() : "null",
+                   properties.getContact() != null ? properties.getContact().getUrl() : "null");
+        logger.info("Security enabled: {}", properties.getSecurity() != null ? properties.getSecurity().isEnabled() : "null");
+        logger.info("====================================================");
     }
 
     /**
-     * Provides global API responses that can be reused across all endpoints
+     * Listener to clear SpringDoc cache when properties are refreshed
+     */
+    @EventListener(EnvironmentChangeEvent.class)
+    public void onEnvironmentChangeEvent(EnvironmentChangeEvent event) {
+        OpenAPIService openAPIService = openAPIServiceProvider.getIfAvailable();
+        if (openAPIService != null && event.getKeys().stream().anyMatch(key -> key.startsWith("app.infra.openapi"))) {
+            logger.info("=== [STARTER] OpenAPI properties changed, attempting to reset SpringDoc cache ===");
+            try {
+                // Use reflection to call reset() to avoid compilation issues if version varies
+                try {
+                    Method resetMethod = openAPIService.getClass().getMethod("reset");
+                    resetMethod.invoke(openAPIService);
+                    logger.info("=== [STARTER] SpringDoc cache reset via reset() ===");
+                } catch (NoSuchMethodException e) {
+                    // Fallback to searching for cache map fields
+                    boolean cleared = false;
+                    for (Field field : openAPIService.getClass().getDeclaredFields()) {
+                        if (field.getName().toLowerCase().contains("cache")) {
+                            field.setAccessible(true);
+                            Object cache = field.get(openAPIService);
+                            if (cache instanceof Map) {
+                                ((Map<?, ?>) cache).clear();
+                                logger.info("=== [STARTER] SpringDoc cache cleared via field: {} ===", field.getName());
+                                cleared = true;
+                            }
+                        }
+                    }
+                    if (!cleared) {
+                        logger.warn("=== [STARTER] Could not find reset() method or cache field in OpenAPIService ===");
+                    }
+                }
+            } catch (Exception e) {
+                logger.error("=== [STARTER] Error resetting SpringDoc cache: {} ===", e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Customizer to update OpenAPI info from refreshed properties.
+     * We don't use @RefreshScope here because ApiDocProperties is a singleton
+     * that is automatically updated by ConfigurationPropertiesRebinder.
      */
     @Bean
-    @RefreshScope
-    public OpenApiCustomizer globalApiResponsesCustomizer() {
+    public OpenApiCustomizer openApiInfoCustomizer() {
         return openApi -> {
-            Components components = openApi.getComponents();
-            if (components == null) {
-                components = new Components();
-                openApi.setComponents(components);
+            logger.info("=== [STARTER] OpenApiInfoCustomizer EXECUTING ===");
+            
+            // Ensure essential objects are initialized to prevent NPEs
+            if (openApi.getInfo() == null) {
+                openApi.setInfo(new Info());
+                logger.info("=== [STARTER] Initialized null Info ===");
+            }
+            if (openApi.getPaths() == null) {
+                openApi.setPaths(new Paths());
+                logger.info("=== [STARTER] Initialized null Paths ===");
+            }
+            if (openApi.getComponents() == null) {
+                openApi.setComponents(new Components());
+                logger.info("=== [STARTER] Initialized null Components ===");
             }
 
-            // Initialize responses map if null
-            if (components.getResponses() == null) {
-                components.setResponses(new HashMap<>());
+            Info info = openApi.getInfo();
+            
+            // Update title, description, and version from properties
+            if (properties.getTitle() != null) {
+                info.setTitle(properties.getTitle());
+            }
+            if (properties.getDescription() != null) {
+                info.setDescription(properties.getDescription());
+            }
+            if (properties.getVersion() != null) {
+                info.setVersion(properties.getVersion());
             }
 
-            // Add common global responses
-            Map<String, ApiResponse> globalResponses = new HashMap<>();
+            // Update contact information
+            if (properties.getContact() != null) {
+                Contact contact = info.getContact();
+                if (contact == null) {
+                    contact = new Contact();
+                    info.setContact(contact);
+                }
+                if (properties.getContact().getName() != null) {
+                    contact.setName(properties.getContact().getName());
+                }
+                if (properties.getContact().getEmail() != null) {
+                    contact.setEmail(properties.getContact().getEmail());
+                }
+                if (properties.getContact().getUrl() != null) {
+                    contact.setUrl(properties.getContact().getUrl());
+                }
+            }
 
-            // Success responses
-            globalResponses.put("Success",
-                new ApiResponse().description("Operation completed successfully"));
-
-            globalResponses.put("Created",
-                new ApiResponse().description("Resource created successfully"));
-
-            globalResponses.put("NoContent",
-                new ApiResponse().description("Operation completed, no content returned"));
-
-            // Error responses
-            globalResponses.put("BadRequest",
-                new ApiResponse().description("Invalid input data or validation error"));
-
-            globalResponses.put("Unauthorized",
-                new ApiResponse().description("Authentication required or invalid credentials"));
-
-            globalResponses.put("Forbidden",
-                new ApiResponse().description("Access denied to this resource"));
-
-            globalResponses.put("NotFound",
-                new ApiResponse().description("Requested resource not found"));
-
-            globalResponses.put("Conflict",
-                new ApiResponse().description("Resource conflict or already exists"));
-
-            globalResponses.put("InternalServerError",
-                new ApiResponse().description("Internal server error occurred"));
-
-            // Add all global responses
-            Components finalComponents = components;
-            globalResponses.forEach((key, response) ->
-                finalComponents.getResponses().putIfAbsent(key, response));
-
-            logger.debug("Added {} global API responses to OpenAPI configuration",
-                        globalResponses.size());
+            logger.info("=== [STARTER] OpenApiInfoCustomizer COMPLETED - Title: '{}', Description: '{}' ===", 
+                       info.getTitle(), info.getDescription());
         };
-    }
-
-    private Info buildInfo() {
-        Info info = new Info()
-                .title(properties.getTitle())
-                .description(properties.getDescription())
-                .version(properties.getVersion());
-
-        // Add contact information
-        ApiDocProperties.Contact contactProps = properties.getContact();
-        if (contactProps != null) {
-            Contact contact = new Contact()
-                    .name(contactProps.getName());
-            if (contactProps.getEmail() != null) {
-                contact.email(contactProps.getEmail());
-            }
-            if (contactProps.getUrl() != null) {
-                contact.url(contactProps.getUrl());
-            }
-            info.contact(contact);
-        }
-
-        return info;
-    }
-
-    private Components buildComponents() {
-        Components components = new Components();
-
-        // Add security schemes if security is enabled
-        if (properties.getSecurity() != null && properties.getSecurity().isEnabled()) {
-            ApiDocProperties.ApiKey apiKey = properties.getSecurity().getApiKey();
-            if (apiKey != null && apiKey.isEnabled()) {
-                SecurityScheme apiKeyScheme = new SecurityScheme()
-                        .type(SecurityScheme.Type.APIKEY)
-                        .in(SecurityScheme.In.HEADER)
-                        .name(apiKey.getHeaderName());
-                components.addSecuritySchemes("apiKey", apiKeyScheme);
-            }
-        }
-
-        return components;
-    }
-
-    private List<Server> buildServers() {
-        return properties.getServers().stream()
-                .map(serverProps -> new Server()
-                        .url(serverProps.getUrl())
-                        .description(serverProps.getDescription()))
-                .collect(Collectors.toList());
-    }
-
-    private List<Tag> buildTags() {
-        return properties.getTags().stream()
-                .map(tagProps -> new Tag()
-                        .name(tagProps.getName())
-                        .description(tagProps.getDescription()))
-                .collect(Collectors.toList());
     }
 }
