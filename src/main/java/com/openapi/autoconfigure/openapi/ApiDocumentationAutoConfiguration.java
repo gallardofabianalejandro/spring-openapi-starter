@@ -19,6 +19,7 @@ import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "app.infra.openapi", name = "enabled", matchIfMissing = true)
 @EnableConfigurationProperties(ApiDocProperties.class)
+@RefreshScope
 public class ApiDocumentationAutoConfiguration {
 
     private static final Logger logger = LoggerFactory.getLogger(ApiDocumentationAutoConfiguration.class);
@@ -68,6 +70,7 @@ public class ApiDocumentationAutoConfiguration {
      * Provides global API responses that can be reused across all endpoints
      */
     @Bean
+    @RefreshScope
     public OpenApiCustomizer globalApiResponsesCustomizer() {
         return openApi -> {
             Components components = openApi.getComponents();
